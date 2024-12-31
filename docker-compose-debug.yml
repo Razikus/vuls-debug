@@ -2,23 +2,233 @@ version: '3.8'
 
 services:
   vuls:
-    build:
-      context: .
-      dockerfile: Dockerfile.debug
+    image: vuls/vuls
     command: ["server", "--listen", ":5515"]
-    environment:
-      - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
+    ports:
+      - "5515:5515"
+    volumes:
+      - .:/vuls
+      - $HOME/.ssh:/root/.ssh:ro
 
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
+      - redisdata:/data
     command: redis-server --appendonly yes
 
+  # OVAL Dictionary fetchers
+  oval-redhat-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch redhat 6 7 8 9 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-amazon-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch amazon 2 2023 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-debian-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch debian 10 11 12 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-ubuntu-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch ubuntu 16.04 18.04 20.04 22.04 24.04 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-alpine-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch alpine 3.17 3.18 3.19 3.20 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-oracle-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch oracle 6 7 8 9 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-fedora-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: fetch fedora 39 40 --dbtype redis --dbpath redis://redis:6379/1
+    depends_on:
+      - redis
+
+  oval-suse-fetch:
+    image: vuls/goval-dictionary
+    volumes:
+      - .:/goval-dictionary
+      - ./goval-dictionary-log:/var/log/goval-dictionary
+    command: >
+      sh -c "
+      goval-dictionary fetch suse --suse-type suse-enterprise-server 12 15 --dbtype redis --dbpath redis://redis:6379/1 &&
+      goval-dictionary fetch suse --suse-type opensuse tumbleweed --dbtype redis --dbpath redis://redis:6379/1 &&
+      goval-dictionary fetch suse --suse-type opensuse-leap 15.5 15.6 --dbtype redis --dbpath redis://redis:6379/1
+      "
+    depends_on:
+      - redis
+
+  # GOST fetchers
+  gost-redhat-fetch:
+    image: vuls/gost
+    volumes:
+      - .:/gost
+      - ./gost-log:/var/log/gost
+    command: fetch redhat --dbtype redis --dbpath redis://redis:6379/2
+    depends_on:
+      - redis
+
+  gost-debian-fetch:
+    image: vuls/gost
+    volumes:
+      - .:/gost
+      - ./gost-log:/var/log/gost
+    command: fetch debian --dbtype redis --dbpath redis://redis:6379/2
+    depends_on:
+      - redis
+
+  gost-ubuntu-fetch:
+    image: vuls/gost
+    volumes:
+      - .:/gost
+      - ./gost-log:/var/log/gost
+    command: fetch ubuntu --dbtype redis --dbpath redis://redis:6379/2
+    depends_on:
+      - redis
+
+  gost-microsoft-fetch:
+    image: vuls/gost
+    volumes:
+      - .:/gost
+      - ./gost-log:/var/log/gost
+    command: fetch microsoft --dbtype redis --dbpath redis://redis:6379/2
+    depends_on:
+      - redis
+
+  # CVE Dictionary fetchers
+  cvedb-nvd-fetch:
+    image: vuls/go-cve-dictionary
+    volumes:
+      - .:/go-cve-dictionary
+      - ./go-cve-dictionary-log:/var/log/go-cve-dictionary
+    command: fetch nvd --dbtype redis --dbpath redis://redis:6379/3
+    depends_on:
+      - redis
+
+  cvedb-jvn-fetch:
+    image: vuls/go-cve-dictionary
+    volumes:
+      - .:/go-cve-dictionary
+      - ./go-cve-dictionary-log:/var/log/go-cve-dictionary
+    command: fetch jvn --dbtype redis --dbpath redis://redis:6379/3
+    depends_on:
+      - redis
+
+  cvedb-fortinet-fetch:
+    image: vuls/go-cve-dictionary
+    volumes:
+      - .:/go-cve-dictionary
+      - ./go-cve-dictionary-log:/var/log/go-cve-dictionary
+    command: fetch fortinet --dbtype redis --dbpath redis://redis:6379/3
+    depends_on:
+      - redis
+
+  cvedb-mitre-fetch:
+    image: vuls/go-cve-dictionary
+    volumes:
+      - .:/go-cve-dictionary
+      - ./go-cve-dictionary-log:/var/log/go-cve-dictionary
+    command: fetch mitre --dbtype redis --dbpath redis://redis:6379/3
+    depends_on:
+      - redis
+
+  # Exploit DB fetchers
+  exploitdb-main-fetch:
+    image: vuls/go-exploitdb
+    volumes:
+      - .:/go-exploitdb
+      - ./go-exploitdb-log:/var/log/go-exploitdb
+    command: fetch exploitdb --dbtype redis --dbpath redis://redis:6379/4
+    depends_on:
+      - redis
+
+  exploitdb-github-fetch:
+    image: vuls/go-exploitdb
+    volumes:
+      - .:/go-exploitdb
+      - ./go-exploitdb-log:/var/log/go-exploitdb
+    command: fetch githubrepos --dbtype redis --dbpath redis://redis:6379/4
+    depends_on:
+      - redis
+
+  exploitdb-wild-fetch:
+    image: vuls/go-exploitdb
+    volumes:
+      - .:/go-exploitdb
+      - ./go-exploitdb-log:/var/log/go-exploitdb
+    command: fetch inthewild --dbtype redis --dbpath redis://redis:6379/4
+    depends_on:
+      - redis
+
+  # MSF DB fetcher
+  msfdb-fetch:
+    image: vuls/go-msfdb
+    volumes:
+      - .:/go-msfdb
+      - ./go-msfdb-log:/var/log/go-msfdb
+    command: fetch msfdb --dbtype redis --dbpath redis://redis:6379/5
+    depends_on:
+      - redis
+
+  # KEV fetcher
+  kev-fetch:
+    image: vuls/go-kev
+    volumes:
+      - .:/go-kev
+      - ./go-kev-log:/var/log/go-kev
+    command: fetch kevuln --dbtype redis --dbpath redis://redis:6379/6
+    depends_on:
+      - redis
+
+  # CTI fetcher
+  cti-fetch:
+    image: vuls/go-cti
+    volumes:
+      - .:/go-cti
+      - ./go-cti-log:/var/log/go-cti
+    command: fetch threat --dbtype redis --dbpath redis://redis:6379/7
+    depends_on:
+      - redis
 
 volumes:
-  redis-data:
+  redisdata:
