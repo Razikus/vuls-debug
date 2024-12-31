@@ -1,0 +1,21 @@
+[cveDict]
+type = "redis"
+url  = "redis://redis/3"
+[ovalDict]
+type = "redis"
+url  = "redis://redis/1"
+[gost]
+type = "redis"
+url  = "redis://redis/2"
+[exploit]
+type = "redis"
+url  = "redis://redis/4"
+[metasploit]
+type = "redis"
+url  = "redis://redis/5"
+[kevuln]
+type = "redis"
+url  = "redis://redis/6"
+[cti]
+type = "redis"
+url  = "redis://redis/7"

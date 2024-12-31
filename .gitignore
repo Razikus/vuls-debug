@@ -3,7 +3,6 @@
 *.swp
 *.sqlite3*
 *.db
-*.toml
 tags
 .gitmodules
 coverage.out

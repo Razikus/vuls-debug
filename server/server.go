@@ -27,6 +27,12 @@ type VulsHandler struct {
 
 // ServeHTTP is http handler
 func (h VulsHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	startTime := time.Now()
+	defer func() {
+		elapsed := time.Since(startTime)
+		logging.Log.Infof("Total request processing time: %v", elapsed)
+	}()
+
 	var err error
 	r := models.ScanResult{ScannedCves: models.VulnInfos{}}
 
@@ -38,6 +44,7 @@ func (h VulsHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	parseStart := time.Now()
 	switch mediatype {
 	case "application/json":
 		if err = json.NewDecoder(req.Body).Decode(&r); err != nil {
@@ -61,48 +68,63 @@ func (h VulsHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid Content-Type: %s", contentType), http.StatusUnsupportedMediaType)
 		return
 	}
+	logging.Log.Infof("Request parsing time: %v", time.Since(parseStart))
 
+	detectStart := time.Now()
 	if err := detector.DetectPkgCves(&r, config.Conf.OvalDict, config.Conf.Gost, config.Conf.LogOpts); err != nil {
 		logging.Log.Errorf("Failed to detect Pkg CVE: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
+	logging.Log.Infof("CVE detection time: %v", time.Since(detectStart))
 
+	gostStart := time.Now()
 	logging.Log.Infof("Fill CVE detailed with gost")
 	if err := gost.FillCVEsWithRedHat(&r, config.Conf.Gost, config.Conf.LogOpts); err != nil {
 		logging.Log.Errorf("Failed to fill with gost: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
+	logging.Log.Infof("Gost processing time: %v", time.Since(gostStart))
 
+	cveStart := time.Now()
 	logging.Log.Infof("Fill CVE detailed with CVE-DB")
 	if err := detector.FillCvesWithGoCVEDictionary(&r, config.Conf.CveDict, config.Conf.LogOpts); err != nil {
 		logging.Log.Errorf("Failed to fill with CVE: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
+	logging.Log.Infof("CVE-DB processing time: %v", time.Since(cveStart))
 
+	exploitStart := time.Now()
 	nExploitCve, err := detector.FillWithExploit(&r, config.Conf.Exploit, config.Conf.LogOpts)
 	if err != nil {
 		logging.Log.Errorf("Failed to fill with exploit: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
 	logging.Log.Infof("%s: %d PoC detected", r.FormatServerName(), nExploitCve)
+	logging.Log.Infof("Exploit detection time: %v", time.Since(exploitStart))
 
+	metasploitStart := time.Now()
 	nMetasploitCve, err := detector.FillWithMetasploit(&r, config.Conf.Metasploit, config.Conf.LogOpts)
 	if err != nil {
 		logging.Log.Errorf("Failed to fill with metasploit: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
 	logging.Log.Infof("%s: %d exploits are detected", r.FormatServerName(), nMetasploitCve)
+	logging.Log.Infof("Metasploit processing time: %v", time.Since(metasploitStart))
 
+	kevulnStart := time.Now()
 	if err := detector.FillWithKEVuln(&r, config.Conf.KEVuln, config.Conf.LogOpts); err != nil {
 		logging.Log.Errorf("Failed to fill with Known Exploited Vulnerabilities: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
+	logging.Log.Infof("KEVuln processing time: %v", time.Since(kevulnStart))
 
+	ctiStart := time.Now()
 	if err := detector.FillWithCTI(&r, config.Conf.Cti, config.Conf.LogOpts); err != nil {
 		logging.Log.Errorf("Failed to fill with Cyber Threat Intelligences: %+v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
+	logging.Log.Infof("CTI processing time: %v", time.Since(ctiStart))
 
 	detector.FillCweDict(&r)
 
@@ -112,6 +134,7 @@ func (h VulsHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.ReportedAt = time.Now()
 	}
 
+	filterStart := time.Now()
 	nFiltered := 0
 	logging.Log.Infof("%s: total %d CVEs detected", r.FormatServerName(), len(r.ScannedCves))
 
@@ -134,8 +157,10 @@ func (h VulsHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.ScannedCves, nFiltered = r.ScannedCves.FilterUnfixed(config.Conf.IgnoreUnfixed)
 		logging.Log.Infof("%s: %d CVEs filtered by --ignore-unfixed", r.FormatServerName(), nFiltered)
 	}
+	logging.Log.Infof("Filtering time: %v", time.Since(filterStart))
 
 	// report
+	reportStart := time.Now()
 	reports := []reporter.ResultWriter{
 		reporter.HTTPResponseWriter{Writer: w},
 	}
@@ -165,4 +190,5 @@ func (h VulsHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+	logging.Log.Infof("Report generation time: %v", time.Since(reportStart))
 }
