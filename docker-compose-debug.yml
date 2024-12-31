@@ -2,15 +2,14 @@ version: '3.8'
 
 services:
   vuls:
-    image: vuls/vuls
+    build:
+      context: .
+      dockerfile: Dockerfile.debug
     command: ["server", "--listen", ":5515"]
     depends_on:
       - redis
     ports:
       - "5515:5515"
-    volumes:
-      - .:/vuls
-      - $HOME/.ssh:/root/.ssh:ro
 
   redis:
     image: redis:alpine
